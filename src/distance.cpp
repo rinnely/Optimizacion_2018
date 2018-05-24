@@ -17,8 +17,8 @@ struct cell {
             x(x), y(y), distance(distance) {}
 };
 
-bool isInsideGrid(int i, int j, float* cost_raster){
-    return (i >= 0 && i < ROW && j >= 0 && j < COL && cost_raster[i][j] >= 0);
+bool isInsideGrid(int i, int j, float* cost_raster, int rows, int cols){
+    return (i >= 0 && i < rows && j >= 0 && j < cols && cost_raster[i][j] >= 0);
 }
 
 set<cell> vecinos(int origen_x, int origen_y, int rows, int cols, float* cost_raster){
@@ -61,7 +61,7 @@ set<cell> vecinos(int origen_x, int origen_y, int rows, int cols, float* cost_ra
         y = k.y + dy[i];
         //cout << "x = " << x << " y = " << y << endl;
         // if not inside boundry, ignore them
-        if (!isInsideGrid(x, y, cost_raster)){
+        if (!isInsideGrid(x, y, cost_raster,rows,cols)){
             //cout << "no inside grid" << endl;
             continue;
         }
@@ -89,7 +89,7 @@ set<cell> vecinos(int origen_x, int origen_y, int rows, int cols, float* cost_ra
 }
 
 float* acumulados(set<cell> active_costs, int origen_x, int origen_y, float** biomass, float intervals, float xMin, float xMax, float yMin, float yMax, float* cost_raster, float* active_raster, float* output_raster){
-    extern char is_usable;
+    char is_usable = 'y';
     int exp;
 
     if(is_usable == 'y')
@@ -128,7 +128,7 @@ float* acumulados(set<cell> active_costs, int origen_x, int origen_y, float** bi
 
                 set<float>distancias;
 
-                if(isInsideGrid(x,y,cost_raster)) {
+                if(isInsideGrid(x, y, cost_raster, rows, cols)) {
                 if(i % 2 != 0){// si es movimiento diagonal
 
                     if((x != origen_x || y != origen_y) && active_raster[x][y] == 0){

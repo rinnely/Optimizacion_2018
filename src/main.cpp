@@ -22,7 +22,7 @@ void main(){
         for (int y = 0; y < rows; ++y) {
             for (int x = 0; x < cols; ++x) {
                 if (biomass[x][y] > 0){
-                    output_ raster = getDistance(biomass, friction, int x, int y, int rows, int cols, di.intervals, i - 80, i + 80, j - 80, j + 80);
+                    float* output_raster = getDistance(biomass, friction, int x, int y, int rows, int cols, di.intervals, i - 80, i + 80, j - 80, j + 80);
                 }
             }
         }
