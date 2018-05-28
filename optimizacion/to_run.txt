@@ -1,0 +1,4 @@
+g++ -std=c++11 main.cpp -o optimization -L/usr/local/lib -L/usr/include -lopencv_core -lgdal -lopencv_imgproc -lopencv_flann -lopencv_highgui -lopencv_imgcodecs -fopenmp bellford.o dijkstra.o DisplayImage.o distance.o exploracion.o tree.o
+
+./optimization -b ./biomass.tif -f ./fricc.tif -a a -r Mapa -v 1 -u d -w 30 -i 40 -p 80 -l 30 -e y
+
