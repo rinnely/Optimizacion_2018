@@ -234,8 +234,9 @@ int main(int argc, const char** argv){
 	di.define_intervals(demanda, xIntervals, yIntervals);
 
 	if(optValidation == 4) {
+
 		costDistance d;
-		Explore e;
+		
 		d.COL = cols;
 		d.ROW = rows;
 
@@ -246,38 +247,45 @@ int main(int argc, const char** argv){
 
 		cout<<"Parallel region"<<endl;
 
-        #pragma omp parallel for collapse(2) 
+		omp_lock_t writelock;
+
+		omp_init_lock(&writelock);;
+
+
+        #pragma omp parallel for collapse(2) schedule(dynamic,1) private(i,j,centroid) firstprivate(d)
             for (int i = 0; i < rows; i++) {
                 for (int j = 0; j < cols; j++) {
                     centroid.x = i; centroid.y = j;
 
                     #pragma omp parallel
-                    
+
                     if (biomass[i][j] > 0) {
-                    	#pragma omp shchedule(guided)
+                    	//printf("entro al if\n");
+                    	#pragma omp shchedule(guided) 
                         cout << biomass[i][j] << endl;
                         coords.open("coords"+ std::to_string(omp_get_thread_num()) +".txt");
                         cout << centroid.x << ", " << centroid.y << endl;
                         cout << "No. " << cont << " / " << di.valid_points << endl;
                         coords << centroid.y << " " << centroid.x;
                         coords.close();
-                        // printf("cerro coords\n");
-                        // printf("antes de proyectar\n");
+                        //printf("cerro coords\n");
+                        //printf("antes de proyectar\n");
                     	
-                        //#pragma omp signle
+                        #pragma omp signle lastprivate(map_biomass,friction, biomass,di) 
+                        //ordered
                         di.reproject_coords(map_biomass);
-                       // printf("projecto biomass\n");
+                        //printf("proyecto biomass\n");
                         clock_t begin_cd = clock();
 
                         d.inicio_cost_distance(friction, centroid.x, centroid.y, biomass, di.intervals, i - 80, i + 80, j - 80, j + 80, di.projection);
 
-                      //  printf("paso d.inicio\n");
+                        //printf("paso d.inicio\n");
                         clock_t end_cd = clock();
                         double elapsed_secs_cd = double(end_cd - begin_cd) / CLOCKS_PER_SEC;
 
                         cout << "Cost Distance time = " << elapsed_secs_cd << " secs." << endl;
                         
-                        
+                       //#pragma omp parallel 
                         switch(algorithm) {
                             case 'B': //Binary search
                             case 'b': {
@@ -311,22 +319,23 @@ int main(int argc, const char** argv){
                             case 'a': {
                                
                                 string algName = "AStar";
-                                //#pragma omp critical
+                                
+                                Explore e;
+                                #pragma omp critical
                                 e.COL = cols;
                                 e.ROW = rows;
-                               // printf("paso e.col,rows\n");
+                                //printf("paso e.col,rows\n");
                                 e.inicio(biomass);
-                                //printf("paso inicio biomass\n");
+                               // printf("paso inicio biomass\n");
                                 clock_t begin2 = clock();
-                                //printf("paso el clock\n");
+                               // printf("paso el clock\n");
 
-                                #pragma omp critical
+                                //#pragma omp critical
                                 e.explore(d.output_raster, centroid.x, centroid.y, demanda, info, heuristic);
                                // printf("exploro\n");
                                 clock_t end2 = clock();
                                 double elapsed_secs2 = double(end2 - begin2) / CLOCKS_PER_SEC;
                                 cout << "A* Search time = " << elapsed_secs2 << " secs." << endl;
-
 
                                 if(e.cost > bestCost) {
                                 	//printf("entra aqui?\n");
@@ -340,17 +349,23 @@ int main(int argc, const char** argv){
                                     bestxMax = i + 50;
                                     bestyMin = j - 50;
                                     bestyMax = j + 50;
-                                  //  printf("salio del best cost\n");
+                                   // printf("salio del best cost\n");
+                                
                                 }
 
-                                //int tid = omp_get_thread_num();
-                                //if(tid == 0){
-
-                               	#pragma omp single private(e,d)
-                                e.freeMem();
-                                d.freeMem();
-                                //}
-                                break;
+                                int tid;
+                                //#pragma omp ordered
+                                #pragma omp critical
+                                tid = omp_get_thread_num();
+                              	 if(tid == 0){
+	                                e.freeMem();
+									d.freeMem();
+                                	
+    	                            break;
+        	                      
+                                }
+                                
+                                
 
                             }
                         }
@@ -359,6 +374,8 @@ int main(int argc, const char** argv){
                 }
             //}
 		}
+		omp_destroy_lock(&writelock);
+
 		cout << "*** Best point ***" << endl;
 		coords.open("coords.txt");
 		coords << bestY << " " << bestX;
@@ -444,18 +461,21 @@ int main(int argc, const char** argv){
 		
 				
 		//while(cont <= grids_to_validate) 
-		omp_set_nested(1);
+		//omp_set_nested(1);
 
 		
-
-		#pragma omp parallel for shared(mapa_puntos, d) private(cont, export_points, centroid)
+		#pragma omp parallel for schedule(dynamic,1) shared(mapa_puntos) private(cont, export_points, centroid) firstprivate(d)
 		for (cont = 1; cont <= grids_to_validate; cont++){
 			coords.open("coords.txt");
 			cout << "\n\n" << endl;
+
+			
 			centroid = di.find_centroid(grids, biomass, friction);
+
+			//#pragma omp parallel
 			if(!grids.empty())
 				grids.erase(--grids.end());
-
+			//#pragma omp shchedule(guided) 
 			cout << "No. " << cont << " / " << grids_to_validate << endl;
 			//centroid.x = 49; centroid.y = 93;
 			//cout << "Source = " << centroid.x << ", " << centroid.y << endl;
@@ -476,7 +496,7 @@ int main(int argc, const char** argv){
 			//di.matrix_to_tiff(d.output_raster, rows, cols, "", 0, "", "cost_distance");
 
 			//exit(0);
-			#pragma omp parallel 
+			//#pragma omp parallel 
 			switch(algorithm) {
 				case 'B': //Binary search
 				case 'b': {
@@ -532,7 +552,7 @@ int main(int argc, const char** argv){
 				case 'a': {
 					Explore e;
 					string algName = "AStar";
-					#pragma omp critical
+					//#pragma omp critical
 					e.COL = cols;
 					e.ROW = rows;
 					e.inicio(biomass);
@@ -548,7 +568,7 @@ int main(int argc, const char** argv){
 					double elapsed_secs2 = double(end2 - begin2) / CLOCKS_PER_SEC;
 					cout << "A* Search time = " << elapsed_secs2 << " secs." << endl;
 
-					#pragma omp single
+					//#pragma omp single
 					if (optValidation == 1) {
 						clock_t begin3 = clock();
 						di.write_image(e.matrix_path, rows, cols, hName, demanda, region, algName);
@@ -560,7 +580,7 @@ int main(int argc, const char** argv){
 					}
 
 					if(export_points == 1){
-						#pragma omp single
+						//#pragma omp single
 						if(e.cost > bestCost) {
 							bestCost = e.cost;
 							bestX = e.X;
@@ -582,11 +602,10 @@ int main(int argc, const char** argv){
 					//if(tid == 0){
 					//printf("va a liberar e\n");
 
-					#pragma omp auto critical
+					//#pragma omp critical
 
 					e.freeMem();
 					d.freeMem();
-					//printf("termino de liberar e y d\n");
 
 					break;
 					//}	
